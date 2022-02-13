@@ -28,7 +28,7 @@ Fill in the missing values in the analysis of the variance table.
 |Treatments|2|7.224|3.6122|7.289|0.004|
 |Error|19|9.415|0.496| | |
 
-**ANSWER: see above "chart" and below ANOVA table for definitions and missing values, respectively.**
+**ANSWER:** see above "chart" and below ANOVA table for definitions and missing values, respectively.
 
 ```{r}
 jets <- read.csv("jetlag.csv", header = TRUE)
@@ -58,21 +58,21 @@ Use the ANOVA table in Question A1 to answer the following questions:
 
 a. **1 pts** Write the null hypothesis of the ANOVA $F$-test, $H_0$
 
-**ANSWER: $H_0$ = $\mu_1$ = $\mu_2$ = $\mu_3$ = $\mu_n$**
+**ANSWER:** $H_0$ = $\mu_1$ = $\mu_2$ = $\mu_3$ = $\mu_n$
 
 In otherwords, equal means.
 
 b. **1 pts** Write the alternative hypothesis of the ANOVA $F$-test, $H_A$
 
-**ANSWER: the means are not all equal.**
+**ANSWER:** the means are not all equal.
 
 c. **1 pts** Fill in the blanks for the degrees of freedom of the ANOVA $F$-test statistic:   $F$(____, _____)
 
-***ANSWER: $F$(K-1, N-K) = $F$(3-1, 22-3) = $F$(2, 19)
+**ANSWER:** $F$(K-1, N-K) = $F$(3-1, 22-3) = $F$(2, 19)
 
 d. **1 pts** What is the p-value of the ANOVA $F$-test?
 
-**ANSWER = 0.00447**
+**ANSWER** = 0.00447
 
 e. **1 pts** According the the results of the ANOVA $F$-test, does light treatment affect phase shift?  Use an $\alpha$-level of 0.05.
 
