@@ -1,0 +1,462 @@
+---
+title: "Homework 5 Peer Assessment"
+output:
+  word_document: default
+  html_document: default
+  pdf_document: default
+date: "Spring Semester 2021"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+options(tinytex.verbose = TRUE)
+```
+
+## Background
+
+Selected molecular descriptors from the Dragon chemoinformatics application were used to predict bioconcentration factors for 779 chemicals in order to evaluate QSAR (Quantitative Structure Activity Relationship).  This dataset was obtained from the UCI machine learning repository.
+
+The dataset consists of 779 observations of 10 attributes. Below is a brief description of each feature and the response variable (logBCF) in our dataset:
+
+1. *nHM* - number of heavy atoms (integer)
+2. *piPC09* - molecular multiple path count (numeric)
+3. *PCD* - difference between multiple path count and path count (numeric)
+4. *X2Av* - average valence connectivity (numeric)
+5. *MLOGP* - Moriguchi octanol-water partition coefficient (numeric)
+6. *ON1V* -  overall modified Zagreb index by valence vertex degrees (numeric)
+7. *N.072* - Frequency of RCO-N< / >N-X=X fragments (integer)
+8. *B02[C-N]* - Presence/Absence of C-N atom pairs (binary)
+9. *F04[C-O]* - Frequency of C-O atom pairs (integer)
+10. *logBCF* - Bioconcentration Factor in log units (numeric)
+
+Note that all predictors with the exception of B02[C-N] are quantitative.  For the purpose of this assignment, DO NOT CONVERT B02[C-N] to factor.  Leave the data in its original format - numeric in R.
+
+Please load the dataset "Bio_pred" and then split the dataset into a train and test set in a 80:20 ratio. Use the training set to build the models in Questions 1-6. Use the test set to help evaluate model performance in Question 7. Please make sure that you are using R version 3.6.X.
+
+## Read Data
+
+```{r, message=F, warning=F}
+# Clear variables in memory
+rm(list=ls())
+
+# Import the libraries
+library(CombMSC)
+library(boot)
+library(leaps)
+library(MASS)
+library(glmnet)
+
+# Ensure that the sampling type is correct
+RNGkind(sample.kind="Rejection")
+
+# Set a seed for reproducibility
+set.seed(100)
+
+# Read data
+fullData = read.csv("Bio_pred.csv",header=TRUE)
+
+# Split data for traIning and testing
+testRows = sample(nrow(fullData),0.2*nrow(fullData))
+testData = fullData[testRows, ]
+trainData = fullData[-testRows, ]
+```
+## Question 1: Full Model **TRAIN DATA**
+
+(a) Fit a standard linear regression with the variable *logBCF* as the response and the other variables as predictors. Call it *model1*. Display the model summary.
+
+```{r}
+model1 <- lm(logBCF ~ ., data = trainData)
+summary(model1)
+```
+(b) Which regression coefficients are significant at the 95% confidence level? At the 99% confidence level?
+
+**ANSWER 1B**: At the 95% confidence level, the following coefficients are significant: nHM, MLOGP, ON1V, B02.C.N., F04.C.O.  
+
+At the 99% confidence level, the following coefficients are significant: nHM, MLOGP, F04.C.O.  
+
+```{r}
+#Significant coefficients at 95% level
+names(which(summary(model1)$coeff[,4]<0.05))
+#Significant coefficients at 99% level
+names(which(summary(model1)$coeff[,4]<0.01))
+```
+(c) What are the 10-fold and leave one out cross-validation scores for this model?
+
+**ANSWER 1C**: The 10-fold and leave one out cross-validation score is 0.6.
+
+```{r, message=F, warning=F}
+#set seed
+set.seed(100)
+
+#Calculate number of rows in training data set
+n = nrow(trainData) 
+
+#Transform lm into a glm model since cv.glm takes in a glm model
+modelGLM = glm(logBCF~., data = trainData)
+
+#data frame: ten-fold cross validation & leave one out
+data.frame(tenFold = cv.glm(trainData, modelGLM, K=10)$delta[1],
+leaveOut = cv.glm(trainData, modelGLM ,K=n)$delta[1])
+```
+(d) What are the Mallow's Cp, AIC, and BIC criterion values for this model?
+
+**ANSWER 1D**: The Mallows CP, AIC, and BIC values are 10, 1497.48, 1546.27, respectively. 
+
+```{r, message=F, warning=F}
+#Mallows' Cp statistic estimates the size of the bias that is introduced into the predicted responses by having an under-specified model. Use Mallows' Cp to choose between multiple regression models.
+set.seed(100)
+library(leaps)
+
+#Calculate Mallows cp, AIC (k=2), BIC (k=log(n)) values
+c(Cp(model1, S2=summary(model1)$sigma^2), 
+  AIC(model1, k=2), AIC(model1,k=log(n)))
+
+```
+(e) Build a new model on the training data with only the variables which coefficients were found to be statistically significant at the 99% confident level. Call it *model2*. Perform an ANOVA test to compare this new model with the full model. Which one would you prefer? Is it good practice to select variables based on statistical significance of individual coefficients? Explain.
+
+**ANSWER 1E**: The p-value for the partial F-test is 0.005. We can reject the null hypothesis that the regression coefficients for additional variables in model 1 are zero given all other predictors in model 1. In other words, one or more of the variables does have prediction power. At least one of the predictors excluded in the reduced model has a coefficient not equal to zero and hence, the full model is preferred over the reduced model.
+
+It is not good practice to perform variable selection based on individual variable significance, given that p-values are dependent on the current model (i.e., other variables). In other words, removing variables will change p-values for other variables. 
+
+```{r}
+#set seed
+set.seed(100)
+
+#Coefficients significant at 99%level
+which(summary(model1)$coeff[,4]<0.01)
+
+#Linear model with coefficients significant at 99% level
+model2 <- lm(logBCF ~ nHM + MLOGP + F04.C.O., data = trainData)
+summary(model2)
+
+#Partial F-Test: Anova model comparing full and partial models
+anova(model2, model1)
+```
+## Question 2: Full Model Search **TRAIN DATA**
+
+(a) Compare all possible models using Mallow's Cp. What is the total number of possible models with the full set of variables? Display a table indicating the variables included in the best model of each size and the corresponding Mallow's Cp value. 
+
+**ANSWER 2A**: Below is the table indicated variables included in the best model. 
+
+Excluding the response variable, there are 9-variables in the dataset. Total possible models with the full set of 9-variables is 512 models (2^9).
+
+```{r, message=F, warning=F}
+set.seed(100)
+
+library(leaps)
+#out = leaps(trainData[,-c(1,2)], trainData$logBCF , method = "Cp")
+col_names = names(trainData)[-10]
+out = leaps(trainData[,-10], trainData$logBCF, method = "Cp", nbest=1, names = col_names)
+cbind(as.matrix(out$which),out$Cp)
+```
+(b) How many variables are in the model with the lowest Mallow's Cp value? Which variables are they? Fit this model and call it *model3*. Display the model summary.
+
+**ANSWER 2B**:  The model with the lowest cp value is: 6  1 1 0 0 1 1 0 1 1, 6.116174. Variables 1, 2, 5, 6, 8, 9 are included in the model as indicated. These selected variables most closely resemble that of the backward variable selection method, which we will look at next (i.e., the two models selected similar variables). Model 3 can be seen below. 
+
+|        | Full Model  | 
+|--------|-------------|
+|nHM     |      X      |       
+|piPC09  |      X      | 
+|PCD     |             |      
+|X2AV    |             |
+|MLOGP   |      X      |
+|ON1V    |      X      |
+|N.072   |             |
+|B02.C.N.|      X      |
+|F04.C.O.|      X      |
+
+```{r}
+set.seed(100)
+model1
+
+model3 <- lm(logBCF ~  nHM + piPC09 + MLOGP + ON1V +	B02.C.N. + F04.C.O., data = trainData)
+summary(model3)
+```
+## Question 3: Stepwise Regression **TRAIN DATA**
+
+(a) Perform backward stepwise regression using BIC. Allow the minimum model to be the model with only an intercept, and the full model to be *model1*. Display the model summary of your final model. Call it *model4*
+
+```{r}
+set.seed(100)
+
+#Minimum model: intercept only model
+minModel <-  lm(logBCF ~ 1 , data = trainData)
+summary(minModel)
+
+#Backward Regression using BIC (criteria = "BIC", k = log(n))
+model4 <- step(model1, scope=list(lower=minModel, upper=model1), direction="backward", k = log(n), trace = F)
+summary(model4)
+
+```
+(b) How many variables are in *model4*? Which regression coefficients are significant at the 99% confidence level?
+
+**ANSWER 3B**: After performing backward stepwise regression, model4 contains 4 variables (seen below). As seen below, all 4-variables are significant at the 99% level. (The intercept is not significant at the 99% level.) 
+
+(Intercept)   
+nHM         
+piPC09      
+MLOGP        
+F04.C.O.     
+
+```{r}
+#Significant coefficients at 99% level
+which(summary(model4)$coeff[,4]<0.01)
+```
+(c) Perform forward stepwise selection with AIC. Allow the minimum model to be the model with only an intercept, and the full model to be *model1*. Display the model summary of your final model. Call it *model5*. Do the variables included in *model5* differ from the variables in *model4*? 
+
+**ANSWER 3C**: After performing forward stepwise regression using AIC as the selection criteria, the model with the lowest AIC value contained the below 6-coefficients. The coefficients with the asterisk (*) were also selected in Model 4. The other two variables were not in Model 4. Of the selected coefficients in model 5, the coefficients which are significant at the 99% level are the ones marked with an exclamation (!). Looking at the coefficients which are significant in both model 4 and 5 at the 99% level, 
+
+(Intercept)  
+MLOGP     ***  !!!
+nHM       ***  !!!
+piPC09    ***  !!!
+F04.C.O.  ***  !!!
+B02.C.N.      
+ON1V        
+
+```{r}
+set.seed(100)
+
+model5 <- step(minModel, scope=list(lower=minModel, upper=model1), direction="forward", k = 2, trace = F)
+summary(model5)
+
+#Significant coefficients at 99% level
+which(summary(model5)$coeff[,4]<0.01)
+
+```
+(d) Compare the adjusted $R^2$, Mallow's Cp, AICs and BICs of the full model(*model1*), the model found in Question 2 (*model3*), and the model found using backward selection with BIC (*model4*). Which model is preferred based on these criteria and why?
+
+**ANSWER 3D**: for Model 1, 3, and 4, the Mallows CP, AIC, BIC, and R^2 values can be seen below, respectively.
+
+Each model as an R^2 value of 0.66; however, Model 4 has the lowest Mallows CP and BIC. Model 3 has the lowest AIC value. Model 4 is the preferred model given the low prediction error values of BOTH CP and BIC. 
+
+```{r}
+set.seed(100)
+
+#Model 1: Mallows, AIC, BIC
+c(Cp(model1, S2=summary(model1)$sigma^2), 
+  AIC(model1, k=2), AIC(model1,k=log(n)),
+  summary(model1)$r.squared)
+
+#Model 3: Mallows, AIC, BIC
+c(Cp(model3, S2=summary(model3)$sigma^2), 
+  AIC(model3, k=2), AIC(model3,k=log(n)),
+  summary(model3)$r.squared)
+
+#Model 4: Mallows, AIC, BIC
+c(Cp(model4, S2=summary(model4)$sigma^2), 
+  AIC(model4, k=2), AIC(model4,k=log(n)),
+  summary(model4)$r.squared)
+
+```
+## Question 4: Ridge Regression **TRAIN DATA**
+
+(a) Perform ridge regression on the training set. Use cv.glmnet() to find the lambda value that minimizes the cross-validation error using 10 fold CV.
+
+**ANSWER 4A**: Using Ridge Regression and 10-fold cross-validation, the optimal lambda (penalty parameter) is 0.108775.
+
+```{r}
+set.seed(100)
+
+#set response and prediction variables in correct format for glm
+xTrain <- model.matrix(logBCF ~ ., trainData)[,-1]
+yTrain <- trainData$logBCF
+
+#Create Ridge Regression 10-fold cross-validation
+#10-fold to find optimal lambda
+ridgeCV1 = cv.glmnet(xTrain, yTrain, family = "gaussian", alpha = 0, nfolds=10)
+ridgeCV1$lambda.min
+
+```
+(b) List the value of coefficients at the optimum lambda value.
+
+**ANSWER 4B**: The values for the coefficients at the optima lambda value are seen below.
+
+```{r}
+set.seed(100)
+
+#fit lasso model 
+ridgeModel1 = glmnet(xTrain, yTrain, alpha = 0, nlambda = 100)
+
+#extract coefficients at optimal
+ridgeCoef <- coef(ridgeModel1, ridgeCV1$lambda.min)
+ridgeCoef
+```
+(c) How many variables were selected? Give an explanation for this number.
+
+**ANSWER 4C**: Given that ridge regression does not perform variable selection, all variables were selected/included. The coefficients and their values can be seen above in the matrix from 4B.
+
+## Question 5: Lasso Regression**TRAIN DATA**
+
+(a) Perform lasso regression on the training set.Use cv.glmnet() to find the lambda value that minimizes the cross-validation error using 10 fold CV.
+
+**ANSWER 5A**: Based on LASSO 10-fold cross-validation, the optimal value for lambda is 0.007854436.
+
+```{r, message=F, warning=F}
+#Import Library 
+library(lars)
+set.seed(100)
+
+#create object of response and predictors 
+object = lars(x = xTrain, y = yTrain)
+
+#10-fold to find optimal lambda
+lassoCV1 = cv.glmnet(xTrain, yTrain, alpha = 1,nfolds=10)
+lassoCV1$lambda.min
+
+#fit lasso model 
+lassoModel1 = glmnet(xTrain, yTrain, alpha = 1, nlambda = 100)
+
+#retrain OLS model discarding variables not selected by LASSO
+indexLasso <- which(coef(lassoModel1, lassoCV1$lambda.min) == 0)
+indexLasso
+lassoPredictors <- as.data.frame(xTrain)[-(indexLasso-1)]
+lassoRetrained <- glm(yTrain ~ . , data = lassoPredictors)
+
+```
+(b) Plot the regression coefficient path.
+
+**ANSWER 5B**: See plot of regression coefficients below. Noted by vertical line, optimal lambda value = 0.00785 or Log of optimal lambda = -4.846677. 
+
+```{r}
+set.seed(100)
+
+## Plot coefficient paths
+plot(lassoModel1, xvar="lambda", lwd=2)
+abline(v=log(lassoCV1$lambda.min), col='black', lty=2, lwd=2)
+lassoCV1$lambda.min
+log(lassoCV1$lambda.min)
+```
+(c) How many variables were selected? Which are they?
+
+**ANSWER 5C**: See below variables that were selected. As noted in matrix, X2Av was not selected. 
+
+```{r}
+set.seed(100)
+
+#extract coefficients at optimal
+lassoCoef <- coef(lassoModel1, lassoCV1$lambda.min)
+lassoCoef
+
+#plot elbow graph to further visualize optimal variable #
+plot(object)
+plot.lars(object, xvar="df", plottype="Cp")
+
+```
+## Question 6: Elastic Net **TRAIN DATA**
+
+(a) Perform elastic net regression on the training set. Use cv.glmnet() to find the lambda value that minimizes the cross-validation error using 10 fold CV. Give equal weight to both penalties.
+
+**ANSWER**: Using Net Elastic and giving equal weights to both LASSO and RIDGE (0.50), the optimal lambda value is 0.0207662.
+
+```{r}
+set.seed(100)
+
+# 10-Fold cross-validation to find optimal lambda values
+netCV1 <- cv.glmnet(xTrain, yTrain, alpha = 0.5, nfolds = 10)
+netCV1$lambda.min
+
+```
+(b) List the coefficient values at the optimal lambda. How many variables were selected? How do these variables compare to those from Lasso in Question 5?
+
+**ANSWER 6B**: Below are the coefficient selected using Net Elastic, along with their values. As seen, all variables were selected. Similar to LASSO, X2Av was forced to zero/not selected.
+
+```{r}
+set.seed(100)
+
+# Train elastic net model
+netModel1 <- glmnet(xTrain, yTrain, alpha = 0.5, nlambda = 100)
+
+#Display coefficients at optimal lambda 
+netCoef <- coef(netModel1, netCV1$lambda.min)
+netCoef
+
+```
+## Question 7: Model comparison  **TEST DATA**
+
+(a) Predict *logBCF* for each of the rows in the test data using the full model, and the models found using backward stepwise regression with BIC, ridge regression, lasso regression, and elastic net.
+
+
+```{r}
+set.seed(100)
+
+############FULL MODEL PREDICTION--------------------------------------
+fullPredict = predict(model1, testData)
+
+############BACKWARD STEPWISE PREDICTION--------------------------------
+# Obtain predicted probabilities for the test set
+stepPredict = predict(model4, testData)
+
+############RIDGE PREDICTION------------------------------------------
+xTest <- model.matrix(logBCF ~ ., testData)[,-1]
+ridgePredict = as.vector(predict(ridgeModel1, newx = xTest,
+                                 s = ridgeCV1$lambda.min))
+
+############LASSO PREDICTION--------------------------------------------
+#Retrain lasso OLS model
+lassoModelRetrained = lm(logBCF~ .-X2Av, data = trainData)
+lassoRetrained = as.vector(predict(lassoModelRetrained, testData))
+
+############ELASTIC NET PREDICTION------------------------------------
+# Obtain predicted probabilities for the test set
+netPredict = as.vector(predict(netModel1, newx = xTest,
+                              s = netCV1$lambda.min))
+
+
+############DATA FRAME WITH PREDICTIONS
+predicts = data.frame(logBCF = testData$logBCF, fullPredict, stepPredict,
+ridgePredict, lassoRetrained, netPredict)
+head(predicts,3)
+```
+(b) Compare the predictions using mean squared prediction error. Which model performed the best?
+
+**ANSWER**: Below are the MSPE for the 5-models: full, backward stepwise, ridge regression, lasso regression, and elastic net.
+
+It is notable to callout that the full and backward models had the highest MSPE values. The ridge, lasso, and elastic net had very similar MSPE values; however, the elastic net did have the lowest value. 
+
+```{r}
+set.seed(100)
+
+#MSPE = mean((predictModeel-testData$response)^2)
+
+####MSPE FULL
+mean((fullPredict-testData$logBCF)^2)
+
+####BACKWARD
+mean((stepPredict-testData$logBCF)^2)
+
+####RIDGE
+mean((ridgePredict-testData$logBCF)^2)
+
+####LASSO
+mean((lassoRetrained-testData$logBCF)^2)
+
+####NET
+mean((netPredict-testData$logBCF)^2)
+
+```
+(c) Provide a table listing each method described in Question 7a and the variables selected by each method (see Lesson 5.8 for an example). Which variables were selected consistently?
+
+**ANSWER 7C**: Below are is the output for each of the variance reduction techniques, along with the selected/remaining variables. 
+
+As seen in my sophistical table, backward stepwise, lasso, and elastic net all estimated variable X2AV (note: while ridge regression does not perform variable selection, the value of this coefficient was reduced to a small value). As mentioned, ridge regression did not eliminate any variables. And backward regression selected the least variables of all the models. 
+
+```{r}
+lassoCoef
+netCoef
+ridgeCoef
+summary(model4)$coef
+```
+
+|        | Backward    | Ridge             | Lasso  | Elastic Net |
+|--------|-------------|-------------------|--------|-------      |
+|nHM     |      X      |        X          |   X    |     X       |      
+|piPC09  |      X      |        X          |   X    |     X       | 
+|PCD     |             |        X          |   X    |     X       |        
+|X2AV    |             |        X          |        |             | 
+|MLOGP   |      X      |        X          |   X    |     X       | 
+|ON1V    |             |        X          |   X    |     X       | 
+|N.072   |             |        X          |   X    |     X       | 
+|B02.C.N.|             |        X          |   X    |     X       |
+|F04.C.O.|      X      |        X          |   X    |     X       | 
+
