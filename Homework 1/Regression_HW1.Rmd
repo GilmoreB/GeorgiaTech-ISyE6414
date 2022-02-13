@@ -1,0 +1,381 @@
+---
+title: "Regression_HW1"
+output:
+  word_document: default
+  html_document:
+    df_print: paged
+---
+```{r}
+knitr::opts_chunk$set(echo = TRUE)
+library(ggpubr)
+library(MASS)
+```
+
+# Part A. ANOVA
+
+## Question A1 - 3 pts
+
+Fill in the missing values in the analysis of the variance table.
+
+***#1
+|Source|Df |Sum of Squares|Mean Squares|F-statistics|p-value|
+|:----:|:-:|:------------:|:----------:|:----------:|:-----:|
+|Treatments|K-1|SSTr||7.289|0.004|
+|Error|N-K|SSE|0.496| | |
+
+#2
+|Source|Df |Sum of Squares|Mean Squares|F-statistics|p-value|
+|:----:|:-:|:------------:|:----------:|:----------:|:-----:|
+|Treatments|2|7.224|3.6122|7.289|0.004|
+|Error|19|9.415|0.496| | |
+
+***ANSWER: see above "chart" and below ANOVA table for definitions and missing values, respectively.
+
+```{r}
+jets <- read.csv("jetlag.csv", header = TRUE)
+jets
+
+jetaov <- aov(jets$phase_shift ~ jets$Treatment)
+summary(jetaov)
+
+
+confint(jetaov)
+```
+
+## Question A2 - 3 pts
+
+Use $\mu_1$, $\mu_2$, and $\mu_3$  as notation for the three mean parameters and define these parameters clearly based on the context of the topic above. Find the estimates of these parameters.
+ $\mu_1$ = -.3087
+ $\mu_2$ = -1.551
+ $\mu_3$ = -.3357
+
+```{r}
+model.tables(jetaov, type = "means")
+```
+
+## Question A3 - 5 pts
+
+Use the ANOVA table in Question A1 to answer the following questions:
+
+a. **1 pts** Write the null hypothesis of the ANOVA $F$-test, $H_0$
+
+***ANSWER: $H_0$ = $\mu_1$ = $\mu_2$ = $\mu_3$ = $\mu_n$
+
+In otherwords, equal means.
+
+b. **1 pts** Write the alternative hypothesis of the ANOVA $F$-test, $H_A$
+
+***ANSWER: the means are not all equal.
+
+c. **1 pts** Fill in the blanks for the degrees of freedom of the ANOVA $F$-test statistic:   $F$(____, _____)
+
+***ANSWER: $F$(K-1, N-K) = $F$(3-1, 22-3) = $F$(2, 19)
+
+d. **1 pts** What is the p-value of the ANOVA $F$-test?
+
+***ANSWER = 0.00447
+
+e. **1 pts** According the the results of the ANOVA $F$-test, does light treatment affect phase shift?  Use an $\alpha$-level of 0.05.
+
+***ANSWER: using alpha 0.05, according to the p-value of the f-test, YES, light treatment DOES affect phase shift. We reject the null hypothesis. 
+
+# Part B. Simple Linear Regression
+
+```{r}
+#read data
+data0 = read.csv("machine.csv", head = TRUE, sep = ",")
+
+#summary stats on data
+head(data0)
+summary(data0)
+```
+
+## Question B1: Exploratory Data Analysis - 9 pts
+
+a. **3 pts** Use a scatter plot to describe the relationship between CPU performance and the maximum number of channels. Describe the general trend (direction and form). Include plots and R-code used.
+
+***ANSWER: The data points points are densely clustered in the lower left portion of the plot (near the origin 0,0). At the ~40 max CPU channel, there is some upward tenancy within the y-axis. Overall the direction is positive. To the eye, there does not appear to be a strong correlation. There appears to be three outliers. 
+
+```{r}
+ggscatter(data0, x= "chmax", y = "performance", conf.int = TRUE, cor.coef = TRUE, xlab = "Max CPU Channels", ylab = "Relative Performance of CPU")
+
+```
+
+b. **3 pts** What is the value of the correlation coefficient between _performance_ and _chmax_? Please interpret the strength of the correlation based on the correlation coefficient.
+
+***ANSWER: As seen both above in the scatter plot (R) and below, the correlation coefficient between 'performance' and 'chmax' is 0.61. Therefore, there is a positive correlation between the two variables. The strength is 0.61 out of 1 (1 being perfectly correlated: for every positive increase in one variable it would equate to an equal increase). In this case, for every positive increase in one variable, there is a 0.61 positive increase in the other variable.  
+
+```{r}
+#correlation coefficient
+cor(data0$chmax,data0$performance)
+```
+
+c. **2 pts** Based on this exploratory analysis, would you recommend a simple linear regression model for the relationship?
+
+***ANSWER: based on the above scatter plot, I would NOT recommend a simple linear regression. 
+
+d. **1 pts** Based on the analysis above, would you pursue a transformation of the data? *Do not transform the data.*
+
+***ANSWER: Yes, I would pursue a transformation.I would try a log-linear, log-log, and linear-log to see which provided the best results. 
+
+## Question B2: Fitting the Simple Linear Regression Model - 11 pts
+
+Fit a linear regression model, named *model1*, to evaluate the relationship between performance and the maximum number of channels. *Do not transform the data.* The function you should use in R is:
+
+```{r}
+model1 <- lm(performance ~ chmax, data = data0)
+summary(model1)
+plot(model1)
+
+#DF = length - 2
+length(data0$chmax)
+```
+
+a. **3 pts** What are the model parameters and what are their estimates?  
+
+***ANSWER: Below are the model parameters we will estimate [model parameters are unknown, only estimated]. 
+𝛽0
+𝛽1
+𝝈2
+
+Estimated Model Parameters(̂):
+𝛽0̂ = 37.2252
+𝛽1̂ = 3.7441
+𝝈̂2 (s^2) = 128.3 = 16471.37
+
+b. **2 pts** Write down the estimated simple linear regression equation.
+
+***ANSWER = 37.2252 + 3.7441x chmax
+
+c. **2 pts** Interpret the estimated value of the $\beta_1$ parameter in the context of the problem.
+
+***ANSWER: for ever one unit increase in X, there is a 3.7441 unit increase in Y. 
+
+d. **2 pts** Find a 95% confidence interval for the $\beta_1$ parameter. Is $\beta_1$ statistically significant at this level?
+
+***ANSWER: the 95% confidence interval for $\beta_1$ is (3.07, 4.42). Given that the confidence interval does not contain zero, B1 is statistically significant at this level. 
+
+```{r}
+#confidence intervals
+#(1-level)/2 and 1 - (1-level)/2 in % 
+confint(model1)
+```
+
+e. **2 pts** Is $\beta_1$ statistically significantly positive at an $\alpha$-level of 0.01?  What is the approximate p-value of this test?
+
+***ANSWER: the APPROXIMATE p-value for the right tail is 1.424772e-22. The p-value is significantly less than an alpha of 0.01. $\beta_1$ is statistically significantly positive at this value of alpha. 
+
+```{r}
+#one-tailed p-value using tvalue
+
+pt(10.938, 207, lower.tail = FALSE)
+```
+
+## Question B3: Checking the Assumptions of the Model - 8 pts
+
+Create and interpret the following graphs with respect to the assumptions of the linear regression model. In other words, comment on whether there are any apparent departures from the assumptions of the linear regression model. Make sure that you state the model assumptions and assess each one.  Each graph may be used to assess one or more model assumptions.
+
+***ASSUMPTIONS: 
+1. Linear Function: at each predictor, xi is a linear function of the xi.
+2. Independence: errors are independent
+3. Normally Distributed: errors at each predictor xi are normally dist.
+4: Equal Variance: errors at each predictor xi have equal variance
+
+
+a. **2 pts** Scatterplot of the data with *chmax* on the x-axis and *performance* on the y-axis
+
+```{r}
+ggscatter(data0, x= "chmax", y = "performance",add = "reg.line", conf.int = TRUE, cor.coef = TRUE, xlab = "Max CPU Channels", ylab = "Relative Performance of CPU")
+```
+
+**Model Assumption(s) it checks:**
+
+***ANSWER: the above scatter plot is checking the below assumption:
+Linearity/Mean Zero, Independence and Constant Variance
+
+**Interpretation:**
+
+***ANSWER: no, this assumption does not hold.
+
+b. **3 pts** Residual plot - a plot of the residuals, $\hat\epsilon_i$, versus the fitted values, $\hat{y}_i$
+
+```{r}
+plot(model1$fitted.values, model1$residuals)
+```
+
+**Model Assumption(s) it checks:**
+
+***ANSWER: the above plot of residuals vs fitted values is checking the below assumption:
+
+Independence (Uncorrelated errors) and Constant Variance
+
+**Interpretation:**
+
+No, this assumption is not satisfied. 
+
+The above errors terms are NOT randomly distributed around the mean nor are they forming a "horizontal band" around the mean (constant). There also appears to be some heteroskedasticity where the spread of the residuals is increasing as the x axis  increases.
+
+c. **3 pts** Histogram and q-q plot of the residuals
+
+```{r}
+#QQ plot
+qqnorm(model1$residuals,main = "Normal Q-Q Plot", xlab = "Theoretical Quantiles", ylab = "Sample Quantiles", plot.it = TRUE, datax = FALSE)
+
+qqline(model1$residuals, col = "steelblue")
+
+#histogram
+hist(model1$residuals,main="Histogram of Residuals")
+```
+
+**Model Assumption(s) it checks:**
+
+***ANSWER: the above normal QQ plot and histogram are checking the following assumption:
+
+3. Normally Distributed: errors at each predictor xi are normally dist.
+
+**Interpretation:**
+
+***ANSWER: the above shows shows a heavy-tailed residuals. This suggests that the residuals (errors) are NOT normally distributed.
+
+When comparing the dataset to the theoretical quantiles, it is evident this is not normally distributed.
+
+
+## Question B4: Improving the Fit - 10 pts
+
+a. **2 pts** Use a Box-Cox transformation (`boxCox()`) to find the optimal $\lambda$ value rounded to the nearest half integer.  What transformation of the response, if any, does it suggest to perform?
+
+***ANSWER: per the below analysis, the lambda which achieves the maximum log likelihood to achieve the lowest SSE is -0.10; however. Rounded to the nearest 1/2 integer that is 0 (which is what I used in the linear model, plots, and histogram).
+
+Given the suggested lambda of 0, this suggests NATURAL LOG transformation of y (ln(y)).
+
+y* = ln(y)
+
+```{r}
+#box <- boxcox(model1, plotit = TRUE)
+box <- boxcox(data0$performance~data0$chmax)
+
+#best lambda = highest log-likelihood + smallest SSE
+bestLambda <- box$x[which.max(box$y)]
+bestLambda
+integer(bestLambda*2)/2
+
+#box linear model and plots
+lmboxcox <- lm(log(performance) ~ chmax, data = data0)
+summary(lmboxcox)
+plot(lmboxcox)
+hist(lmboxcox$residuals)
+```
+
+b. **2 pts** Create a linear regression model, named *model2*, that uses the log transformed *performance* as the response, and the log transformed *chmax* as the predictor. Note: The variable *chmax* has a couple of zero values which will cause problems when taking the natural log. Please add one to the predictor before taking the natural log of it
+
+```{r}
+#create log variables and add 1.2 to x-variable
+transform <- data0 %>%
+  mutate(ln_chmax = log(chmax + 1.2)) %>%
+  mutate(ln_performance = log(performance))
+
+#log-log model
+model2 <- lm(ln_performance ~ ln_chmax, data = transform)
+summary(model2)
+plot(model2)
+```
+
+e. **2 pts** Compare the R-squared values of *model1* and *model2*.  Did the transformation improve the explanatory power of the model?
+
+***ANSWER: per below displayed R-squared values, the explanatory power DID improve with a log-log transformation. The R2 value increased by .046.
+
+LINEAR Model:
+Multiple R-squared:  0.3663,	Adjusted R-squared:  0.3632 
+
+LOG-LOT Model:
+Multiple R-squared:  0.4123,	Adjusted R-squared:  0.4094 
+
+c. **4 pts** Similar to Question B3, assess and interpret all model assumptions of *model2*.  A model is considered a good fit if all assumptions hold. Based on your interpretation of the model assumptions, is *model2* a good fit?
+
+***ANSWER: 
+
+Yes, after performing the log-log transformation, model 2 IS a GOOD FIT.
+
+1. LINEAR FUNCTION: per the below scatter plot of model 2, this assumption is satisfied. It is clearer there is a positive relationship between the x & y variables in this case. 
+
+2. CONSTANT/EQUAL VARIANCE: per the residual & fitted values plot, you can see this assumption is now satisfied. The errors are randomly distributed along 0.
+
+3. INDEPENDENCE ASSUMPTIONS (e indep random vars): similarly, you can see that the errors terms are independent and random. 
+
+4. ERRORS NORMALLY DISTRIBUTED: per the QQ plot, you can see the LOG model performs  better than model1 and appears to be normally distributed. This can also be seen in the histogram below. 
+
+```{r}
+#log-log model
+plot(model2)
+
+ggscatter(transform, x= "ln_chmax", y = "ln_performance", conf.int = TRUE, cor.coef = TRUE, xlab = "Max CPU Channels", ylab = "Relative Performance of CPU")
+
+hist(model2$residuals)
+```
+
+## Question B5: Prediction - 3 pts
+
+Suppose we are interested in predicting CPU performance when `chmax = 128`.  Please make a prediction using both *model1* and *model2* and provide the 95% prediction interval of each prediction on the original scale of the response, *performance*. What observations can you make about the result in the context of the problem?
+
+***ANSWER:
+
+MODEL 1: given chmax of 128, we are 95% confident the population parameter is between 252.25 and 780.68. 
+
+```{r}
+#data frame creating new value of 128
+chmax2 <- data.frame(chmax = 128)
+
+#prediction model for model 1 (LINEAR)
+pred0 <- predict(model1, newdata = chmax2, interval = "prediction", level = 0.95)
+?predict
+
+#model 2 prediction
+exp(predict(model2, newdata = chmax2, interval="prediction", level=0.95))
+
+
+```
+
+# Part C. ANOVA - 8 pts
+
+We are going to continue using the CPU data set to analyze various vendors in the data set.  There are over 20 vendors in the data set.  To simplify the task, we are going to limit our analysis to three vendors, specifically, honeywell, hp, and nas.  The code to filter for those vendors is provided below.
+
+```{r}
+data2 = data[data$vendor %in% c("honeywell", "hp", "nas"), ]
+data2$vendor = factor(data2$vendor)
+```
+
+1. **2 pts** Using `data2`, create a boxplot of *performance* and *vendor*, with *performance* on the vertical axis.  Interpret the plots.  
+
+***ANSWER: the median performance for NAS is slightly higher than the other two vendors. The median performance for Honeywell and HP are similar. NAS as the highest spread/variability in terms of performance, followed by Honeywell, and then HP. While there appears to be a slight difference between nas and the other two vendors, it does not appear to be substantial. 
+
+```{r}
+boxplot(data2$performance ~ data2$vendor, main = "Box Plot of Vendor Performance", xlab = "Vendor", ylab = "Performance")
+```
+
+2. **3 pts** Perform an ANOVA F-test on the means of the three vendors.  Using an $\alpha$-level of 0.05, can we reject the null hypothesis that the means of the three vendors are equal?  Please interpret.
+
+***ANSWER: given the f-value of 6.027 and the corresponding p-value of 0.00553, based on an alpha of 0.05, the null hypothesis CAN be rejected.
+
+```{r}
+nova <- aov(performance ~ vendor, data = data2)
+summary(nova)
+```
+
+3. **3 pts** Perform a Tukey pairwise comparison between the three vendors. Using an $\alpha$-level of 0.05, which means are statistically significantly different from each other?
+
+
+***ANSWER: using alpha 0.05, when comparing the mean performance for the different vendors, none of the means are statistically significantly different from each other. hp-honeywell spans/contains zero and has a "high" adjusted p-value; therefore, there is insufficient evidence to reject H0. Similarly, nas-honeywell and nas-hp both have adjusted p-values higher than alpha of .05.
+
+```{r}
+TukeyHSD(nova)
+```
+
+
+
+
+
+
+
+
+
+
