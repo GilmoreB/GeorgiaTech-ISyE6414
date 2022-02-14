@@ -1,0 +1,493 @@
+---
+title: "Final Exam Part 2"
+date: "Spring Semester 2021"
+output:
+  word_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Instructions
+
+This R Markdown file includes the questions, the empty code chunk sections for your code, and the text blocks for your responses.  Answer the questions below by completing this R Markdown file. You will submit a *html file* using this file. You may make slight adjustments to get the file to knit/convert but otherwise keep the formatting the same. Once you've finished answering the questions, submit your responses in a single knitted file (just like the homework peer assessments).
+
+There are 17 questions divided among 5 sections. The number of points for each question is provided. Partial credit may be given if your code is correct but your conclusion is incorrect or vice versa.
+
+*Next Steps:*
+
+1. Save the .Rmd file in your R working directory - the same directory where you will download the "nba.csv" data file into. Having both files in the same directory will help in reading the "nba.csv" file. 
+
+2. Read the question and create the R code necessary within the code chunk section immediately below each question. Knitting this file will generate the output and insert it into the section below the code chunk. 
+
+3. Type your answer to the questions in the text block provided immediately after the response prompt. 
+
+4. Once you've finished answering all questions, knit this file and submit the knitted file *as html* on Canvas. 
+
+
+### Mock Example Question 5 - 4pts
+
+This will be the exam question - each question is already copied from Canvas and inserted into individual text blocks below, *you do not need to copy/paste the questions from the online Canvas exam.*
+
+```{r}
+# Example code chunk area. Enter your code below the comment`
+```
+
+
+**Mock Response to Question 5**:  This is the section where you type your written answers to the question. Depending on the question asked, your typed response may be a number, a list of variables, a few sentences, or a combination of these elements. 
+
+
+**Ready? Let's begin. We wish you the best of luck!**
+
+
+## Final Exam Part 2 - Data Set Background 
+For this exam, you will be building a model to predict whether an NBA rookie will last 5 years in the league based on their stats.
+
+The nba.csv data set consists of the following 13 variables:
+
+1. games_played: number of games played (numeric)
+
+2. minutes_played: number of minutes played (numeric)
+
+3. points_per_game: average number of points per game (numeric)
+
+4. field_goal_percent: field goals made/field goals attempted (numeric)
+
+5. three_point_percent: three points made/three points attempted (numeric)
+
+6. free_throw_percent: free throws made/free throws attempted (numeric)
+
+7. offensive_rebounds: average number of offensive rebounds per game (numeric)
+
+8. defensive_rebounds: average number of defensive rebounds per game (numeric)
+
+9. assists: average number of assists per game (numeric)
+
+10. steals: average number of steals per game (numeric)
+
+11. blocks: average number of blocks per game (numeric)
+
+12. turnovers: average number of turnovers per game (numeric)
+
+13. target_5yrs: 1 if career length >= 5 years, 0 if career length < 5 years (binary)
+
+Read the data and answer the questions below. Assume a significance level of 0.05 for hypothesis tests.
+
+## Read Data
+
+```{r}
+# Load relevant libraries (add here if needed)
+library(corrplot)
+library(car)
+library(CombMSC)
+library(bestglm)
+library(glmnet)
+library(boot)
+library(randomForest)
+
+# Ensure that the sampling type is correct
+RNGkind(sample.kind="Rejection")
+
+# Set seed 
+set.seed(0)
+
+# Read the data
+dataFull = read.csv("nba.csv", header=TRUE)
+
+# Split data for training and testing
+testRows = sample(nrow(dataFull), 0.2*nrow(dataFull))
+dataTest = dataFull[testRows, ]
+dataTrain = dataFull[-testRows, ]
+```
+
+**Note:** Use *dataTrain* as your dataset for the following questions unless otherwise stated.
+
+**Note:** Treat all variables as quantitative variables. Don't change the data types of the variables.
+
+## Question 1: Exploratory Analysis 
+
+(1a) 2pts - Create a side-by-side boxplot for the variable *games_played* versus *target_5yrs*. Does *games_played* appear useful in predicting whether a NBA rookie will last at least 5 years in the league? Include your reasoning.
+
+```{r}
+boxplot(dataTrain$games_played ~ dataTrain$target_5yrs, main = "Box Plot of Performance & Staying", xlab = "Stayed", ylab = "Games Played")
+```
+
+**Response to question (1a)**
+**Interpretation:** There are clear differences in the median values of players that stayed >= 5 years vs those that did not, as it relates to the number of games played. Those players that stayed >= 5-years, had a higher median value for games played. Those players that stayed < than 5-years, had a lower value for number of games played.
+
+
+(1b) 3pts - Create a correlation table *or* a correlation matrix plot that includes the following twelve quantitative variables: *games_played*, *minutes_played*, *points_per_game*, *field_goal_percent*, *three_point_percent*, *free_throw_percent*, *offensive_rebounds*, *defensive_rebounds*, *assists*, *steals*, *blocks*, and *turnovers*. 
+
+(1b.1) Does there appear to be correlation among these twelve variables? Do these results suggest multicollinearity? Include your reasoning. 
+
+(1b.2) What is the pair of variables with the strongest correlation?  
+
+```{r}
+#Correlation Matrix Plot with 12-Predicting Variables
+corr = cor(cbind(dataTrain[,-c(13)]))
+corrplot(corr)
+
+```
+
+**Response to question (1b.1)** There appears to be strong correlation among some of the predicting variables. This suggest that multi-collinearity could be a problem and not all variables should be included
+
+**Response to question (1b.2)** The pairs of variables with the highest correlation run along the diagonal of the matrix, where each variable is paired with themselves and has a correlation of 1. Excluding these pairs, the next pairs which appear to have the highest correlation are: (1) points_per_game : minutes_played, (2) turnovers : minutes_played, (3) turnovers : points_per_game
+
+## Question 2: Full Model
+
+(2a) 2pts - Fit a logistic regression model (use logit link function) with *target_5yrs* as the response variable and all other variables as predicting variables. Include an intercept. Call it *model1*. Display the summary table for the model. 
+
+```{r}
+model1 <- glm(target_5yrs ~., family = binomial(link ="logit"), data = dataTrain)
+summary(model1)
+```
+(2b) 2pts - Interpret the *free_throw_percent* coefficient in the context of this model.
+
+**Response to question (2b)** A one change in free_throw_percent results in Y changing by the log odds of 0.017767 OR a one unit change in free_throw_percent results in Y changing by a factor of 1.01.
+
+(2c) 2pts - What are the AIC and BIC for this model? Compare AIC and BIC in terms of the types of models they tend to select.
+
+```{r,message=F,warning=F}
+n = nrow(dataTrain)
+
+AIC(model1, k=2)
+AIC(model1,k=log(n))
+
+```
+**Responses to question (2c)**
+
+**AIC:** 1208.868
+
+**BIC:**1273.476
+
+**Compare AIC and BIC in terms of the types of models they tend to select.** As seen above, the BIC value for Model 1 is higher than the AIC value. This is likely because BIC prefers simpler models and penalizes complexity more than AIC. 
+
+(2d) 2pts - Conduct a multicollinearity test on *model1*. Using a VIF threshold of 10, what can you conclude? Is your conclusion consistent with your observations from question (1b)? 
+
+```{r}
+# VIF Threshold
+cat("VIF Threshold:", max(10, 1/(1-summary(model1)$r.squared)), "\n")
+
+vif(model1)
+```
+**Response to question (2d)**
+**Interpretation:** Based on the above VIF analysis, one coefficient was > than the threshold 10: minutes_played. Per the initial visual correlation matrix, of the three pairs which I visually identified as potentially being highly correlated, minutes_played was one of the variables 2:3 (see below)
+
+(1) points_per_game : minutes_played, (2) turnovers : minutes_played, (3) turnovers : points_per_game
+
+(2e) 2pts - Evaluate the overall regression for *model1*. Use an alpha level of 0.05. What do you conclude? Include your reasoning.
+
+```{r,message=F,warning=F}
+1-pchisq((model1$null.dev - model1$deviance),
+(model1$df.null - model1$df.resid))
+
+```
+**Response to question (2e)**
+**Interpretation:** The above overall test indicates a p-value of ~ 0, indicating that the model is significant overall. 
+
+## Question 3: Variable Selection
+
+(3a) 4pts - Conduct a complete search to find the submodel with the smallest AIC. Fit this model. Include an intercept. Call it *model2*. Display the summary table for the model.**Note: Remember to perform the variable selection for a Binomial/logistic regression model.**
+
+(3a.1) Which variables are selected to be in model2?
+(3a.2) Provide a plot of the AIC for the best model of each size. **Hint: Use the Subsets component of bestglm.** What do you see in this plot?
+
+```{r}
+library(bestglm)
+
+Xy <- as.data.frame(cbind(dataTrain$games_played, dataTrain$minutes_played, dataTrain$points_per_game, dataTrain$field_goal_percent, dataTrain$three_point_percent, dataTrain$free_throw_percent, dataTrain$offensive_rebounds, dataTrain$defensive_rebounds, dataTrain$assists, dataTrain$steals, dataTrain$blocks, dataTrain$turnovers, dataTrain$target_5yrs))
+
+bestAIC <- bestglm(Xy, family=binomial, IC=c("AIC"))
+bestAIC
+
+model2 <-  glm(target_5yrs ~ games_played + minutes_played + points_per_game  + free_throw_percent + offensive_rebounds + assists + blocks + turnovers, family = binomial, data = dataTrain,epsilon=1e-14, maxit=500, x=T)
+
+summary(model2)
+
+```
+
+```{r}
+
+
+```
+
+**Response to question (3a.1)**
+**Variables selected:** I don't recall doing a problem similar to this in HW or practice. I found 1-slide in mod 5 using the method employed in model 2; however, there was such little verbiage or detail to go off in the slide I am not confident in this model. The slide did not show how to interpret the model, so I took a wild guess. Also seemed to be a lot of issues with running this, which I've never encountered. That said: 
+
+The following variables were selected for Model 2 doing a complete search: games_played + minutes_played + points_per_game  + free_throw_percent + offensive_rebounds + assists + blocks + turnovers
+
+**Response to question (3a.2)**
+**What do you see in this plot?** I am not sure what this asking: plot of the AIC for the best model of each size. Not sure what best model of each size refers to. Could not find in Mod 5 or 4.
+
+(3b) 3pts - Conduct forward stepwise regression using BIC. Allow the minimum model to be the model with only an intercept, and the full model to be *model1*. Call it *model3*. Display the summary table for the model. Which variables are selected to be in *model3*?  
+
+```{r}
+#Minimum model: intercept only model
+minModel1 <-  lm(target_5yrs ~ 1 , data = dataTrain)
+summary(minModel1)
+
+#FORWARD Stepwise Regression using BIC (k = log(n))
+model3 <- step(minModel1, scope=list(lower = minModel1, upper = model1), direction="forward", k = log(n), trace = F)
+summary(model3)
+
+```
+**Responses to question (3b)**
+**Variables selected:** Using forward stepwise regression with BIC as the selection criteria, varaibles selected are: games_played, offensive_rebounds. It selected very few variables, likely due to BIC propensity for fewer variables (AIC model was much larger).
+
+##############---------------
+
+(3c) 7.5pts - Conduct lasso regression. Use *target_5yrs* as the response, and all other variables as the predicting variables.  Use 10-fold cross validation on the *classification error* to select the optimal lambda value.
+
+(3c.1) What optimal lambda value did you obtain?
+
+(3c.2) Display the estimated coefficients at the optimal lambda value.
+
+(3c.3) How many coefficients were shrunk exactly to zero?
+
+(3c.4) Plot the paths of the lasso regression coefficients. As lambda decreases, which variable is the second variable to become non-zero/selected in the model?
+
+(3c.5) Fit a logistic regression model with *target_5yrs* as the response variable and the variables selected from lasso
+regression as predicting variables. Include an intercept. Call it *model4*. Display the summary table for the model.
+
+```{r,message=F,warning=F}
+# Setting the seed (please do not change)
+set.seed(0)
+
+lassoCV1 = cv.glmnet(as.matrix(dataTrain[,-13]), dataTrain[,13],
+family='gaussian', alpha=1, nfolds=10)
+
+cat("CV Optimized lambda:\n")
+lassoCV1$lambda.min
+
+#Lasso glmnet Model
+lassoModel = glmnet(as.matrix(dataTrain[,-13]), dataTrain[,13], family='gaussian', alpha=1)
+
+```
+```{r}
+# Setting the seed (please do not change)
+set.seed(0)
+coef(lassoModel,s=lassoCV1$lambda.min)
+
+```
+
+```{r}
+# Setting the seed (please do not change)
+set.seed(0)
+
+plot(lassoModel,xvar="lambda",label=TRUE,lwd=2)
+abline(v=log(lassoCV1$lambda.min),col='black',lty = 2,lwd=2)
+
+```
+
+Fit a logistic regression model with *target_5yrs* as the response variable and the variables selected from lasso
+regression as predicting variables. Include an intercept. Call it *model4*. Display the summary table for the model.
+```{r}
+
+set.seed(0)
+model4 <- glm(target_5yrs ~ games_played + points_per_game + field_goal_percent  + three_point_percent + free_throw_percent + offensive_rebounds + defensive_rebounds + assists + steals + blocks +  turnovers, family = binomial(link ="logit"), data = dataTrain)
+
+summary(model4)
+
+```
+
+**Responses to question (3c)** 
+
+**(3c.1) Optimal lambda value:** Optimal Lambda: 0.001800383
+
+**(3c.3) Number of zero coefficients :** The variable minutes_played was taken to zero.
+
+**(3c.4) Which variable is the second variable to become non-zero/selected?** The variables selected are shown above. 
+
+(3d) 1.5pts - Conduct a multicollinearity test on *model2*, *model3*, and *model4*. Using a VIF threshold of 10, have any of these variable selection approaches resulted in a model without the multicollinearity problem? 
+
+**Response to question (3d)** The following models do not have coefficients > threshold: Model 2, Model 3, Model 4
+
+```{r}
+set.seed(0)
+#model2
+cat("VIF Threshold:", max(10, 1/(1-summary(model2)$r.squared)), "\n")
+vif(model2)
+
+#model3
+cat("VIF Threshold:", max(10, 1/(1-summary(model3)$r.squared)), "\n")
+vif(model3)
+
+#model4
+cat("VIF Threshold:", max(10, 1/(1-summary(model4)$r.squared)), "\n")
+vif(model4)
+```
+## Question 4: Model Comparison and Prediction
+
+(4a) 3pts - Compare the AICs and BICs of *model2*, *model3*, and *model4*. Which model is preferred based on these criteria and why?
+
+```{r}
+# Setting the seed (please do not change)
+set.seed(0)
+
+#Model 2
+AIC(model2, k=2)
+AIC(model2,k=log(n))
+
+#Model 3
+AIC(model3, k=2)
+AIC(model3,k=log(n))
+
+#Model 4
+AIC(model4, k=2)
+AIC(model4,k=log(n))
+
+```
+**Response to question (4a)** See AIC and BIC values above. I am not entirely comfortable with Model 2; however, it has the lowest AIC and BIC according to model. After this, Model 4 has the lowest AIC and BIC values. 
+
+(4b) 5pts - Using *model2*, *model3*, and *model4*, give a binary classification to each of the test rows in *dataTest*, with 1 indicating an NBA rookie lasting at least 5 years in the league. Use 0.5 as your classification threshold. 
+
+(4b.1) For each model, what is the classification error rate over these data points? 
+
+(4b.2) Which model has the highest predictive power?
+
+```{r}
+set.seed(0)
+
+# Subset/AIC - Model 2
+subsetPredict = predict(model2,dataTest, type = "response")
+subsetPredict
+
+# Backward SR - Model 3
+FwdPredict = predict(model3,dataTest, type = "response")
+
+# Logistic with Lasso Selected Vars - Model 4
+FwdPredict = predict.glm(model4,dataTest, type = "response")
+FwdPredict
+
+#Create a data frame with the predictions
+predicts = data.frame(target_5yrs = subsetPredict, FwdPredict, FwdPredict)
+head(predicts,3)
+
+#MSPE Model 2
+mean((subsetPredict-dataTest$target_5yrs)^2)
+
+#MSPE Model 3
+mean((FwdPredict-dataTest$target_5yrs)^2)
+
+#MSPE Model 4
+mean((FwdPredict-dataTest$target_5yrs)^2)
+
+```
+
+**Response to question (4b.1)** I followed Mod 5, Lesson 16 and for the life of me I could not get these to binary!!! What am I missing?!
+
+**Model2 classification error rate:** 
+
+**Model3 classification error rate:** 
+
+**Model4 classification error rate:** 
+
+**Response to question (4b.2)**
+**Model with the highest predictive power:** 
+
+(4c) 4pts - Refit *model2* on *dataFull*, and call it *model5*. Then, perform 10-fold cross validation and leave one out cross validation with *model5* to compare classification error rates. How do these two classification error rates compare to the *model2* classification error rate from 4b? Apply your knowledge of cross validation to explain your results.
+
+```{r}
+# Setting the seed (please do not change)
+set.seed(0)
+
+model5 <- glm(target_5yrs ~ games_played + minutes_played + points_per_game  + free_throw_percent + offensive_rebounds + assists + blocks + turnovers, family = binomial, data = dataFull)
+
+summary(model5)
+
+#data frame: ten-fold cross validation & leave one out
+data.frame(tenFold = cv.glm(dataFull, model5, K=10)$delta[1],
+leaveOut = cv.glm(dataFull, model5 ,K=n)$delta[1])
+
+```
+**Response to question (4c)** The k-fold score is .191 while the leave-one-out cross validation score is .190. These are very close given that k-fold is a type of cross-validation
+
+
+(4d) 3pts - Using the same predicting variables as in *model4*, build a random forest model. Call it *model_rf*. **Hint: Convert target_5yrs to a factor.**
+
+(4d.1) What is the benefit of a random forest over a decision tree?
+
+(4d.2) Using *model_rf*, give a binary classification to each of the test rows in *dataTest*, with 1 indicating an NBA rookie lasting at least 5 years in the league. Use 0.5 as your classification threshold. What is the classification error rate over these data points? 
+
+(4d.3) How does the *model_rf* classification error rate compare to the *model2*, *model3*, and *model4* classification error rates obtained in (4b.1)?
+
+```{r}
+# Setting the seed (please do not change)
+library(rpart)
+set.seed(0)
+
+model_rf <- randomForest(factor(target_5yrs) ~ games_played + points_per_game + field_goal_percent  + three_point_percent + free_throw_percent + offensive_rebounds + defensive_rebounds + assists + steals + blocks +  turnovers, data = dataTrain)
+
+## Plotting model
+plot(model_rf)
+
+```
+
+```{r}
+# Code to calculate random forest classification error rate
+
+# 2. Predict using Random Forest Model
+forestPredict <- predict(model_rf, dataTest, type="class")
+
+# 3. Confusion Matrix
+model_rf$confusion
+
+accuracy_forest <- (model_rf$confusion[1,1]+model_rf$confusion[2,2])/(model_rf$confusion[1,1]+model_rf$confusion[1,2]+model_rf$confusion[2,1]+model_rf$confusion[2,2])
+
+accuracy_forest
+
+```
+
+**Response to question (4d.1)**
+**Benefit of a random forest over a decision tree:** By plotting many random trees (random forest), each will have its own strengths and weaknesses. As a whole, the forest will be better than one single model. Where one lacks--another will be strong. Moreover, since it is an aggregation of many trees, over-fitting is limited and can produce better results. 
+
+
+**Response to question (4d.2)**
+**Model_rf classification error rate:** Classification errors: 0 203 
+0 206   0.5036675
+1 132 523   0.201526
+
+And overall accuracy of 0.6823308.
+
+**Response to question (4d.3)**
+**Comparison:** I was unable to get those prediction models to work! 
+
+## Question 5: Goodness of Fit
+
+(5a) 2pts - Explain why we cannot evaluate the goodness of fit of the logistic regression models. What might someone do to fix this problem?
+
+**Response to question (5a)** In general, for a logistic model, we can conduct/review the following: (1) hypothesis test, (2) residuals, (3) do the model assumptions hold. 
+
+(5b) 2pts - Why might a logistic regression model not be a good fit? Provide *two reasons*. How can you try to improve the fit in each situation?
+
+**Responses to question (5b)** Not sure if this means good fit as in not a good model type or the actual logistic model doesn't fit. I will answer both :)
+
+**Reason:** If you are looking to model the expectation of the response, logistic will not be a good option
+
+**How can you try to improve the fit?** use a linear or multi-regression model.
+
+**Reason:** not enough or the right predicting variables
+
+**How can you try to improve the fit?** add other variables
+
+**Reason:** type of predicting variables appear not to work
+
+**How can you try to improve the fit?** transform predicting variables
+
+**Reason:** outliers
+
+**How can you try to improve the fit?** conduct a test (such as cooks D) to see if there are potential outliers.
+
+**Reason:** logit function not appropriate 
+
+**How can you try to improve the fit?** use another funtion--many more 
+
+
+**This is the End of Final Exam Part 2**
+The way this test/format was organized was SUPER confusing, for me. You had new models created before the response/answers to the prior question. Would be better if you could keep the problems together and condensed. Such as the glm and lasso problem. Kind of a pain to scroll and keep track of what is where :)
+
+*We hope you enjoyed the course - and we wish you the best in your future coursework!* Thanks so much guys!!
+
+
