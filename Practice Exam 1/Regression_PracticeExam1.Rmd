@@ -1,0 +1,110 @@
+---
+title: "Practice Midterm Exam 1"
+output:
+  word_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Part 2: Data Analysis
+
+For this part, you will need to use R and the provided dataset.
+
+The dataset was collected from Airbnb with data on listings in the city of Asheville, NC.
+
+Here is the data provided for each listing:
+
+* room id: A unique number identifying an Airbnb listing.
+* host id: A unique number identifying an Airbnb host.
+* room type: One of 'Entire home/apt','Private room', or 'Shared room'
+* reviews: The number of reviews that a listing has received.
+* overall satisfaction: The average rating (out of five) that the listing has received from those visitors who left a review.
+* accommodates: The number of gusts a listing can accommodate.
+* bedrooms: The number of bedrooms a listing offers.
+* price: The price (in USD) for a night stay. In early surveys, there may be some values that were recorded by month.
+
+
+To read the data in R, save the file in your working directory (make sure you have changed the directory if different from the R working directory) and read the data using the R function read.csv().
+
+```{r}
+# Read in the data
+house = read.csv("tomslee_airbnb_asheville_1498_2017-07-20.csv", head = TRUE, sep = ",")
+# Show the first few rows of data
+head(house, 3)
+
+```
+
+## Question 25
+
+Fit a multiple linear regression model named 'model1' using price as the response variable and the following predicting variables: room type, reviews, overall satisfaction, accommodates, and bedrooms. 
+
+Which coefficients (including intercept) are statistically significant at the 99% confidence level?
+
+```{r}
+model1 <- lm(price ~ room_type + reviews + overall_satisfaction + accommodates + bedrooms, data = house)
+
+summary(model1)
+confint(model1,level = 0.99)
+```
+**Response to Question 25**: based on the 99% confidence interval the following do not span 0 and therefore are significant at the 99% level: intercept, room type private, room type shared, overall satisfaction, accommodates, and bedroom.
+
+## Question 26
+
+What is the estimated coefficient for room type = "Private Room"?
+
+```{r}
+
+model1$coefficients["room_typePrivate room"]
+```
+**Response to Question 26**: -33.28108
+
+## Question 27
+
+What is the interpretation for the estimated coefficient for room type = "Private Room"?
+
+```{r}
+summary(model1)
+
+```
+**Response to Question 27**: A private room has a listing price -$33.00 in contrast to base case (room_type Entire Home/Apt), holding all else constant.
+
+
+## Question 28
+
+Assess whether the model assumptions hold.
+
+```{r}
+plot(model1)
+hist(model1$residuals,main="Histogram of Residuals")
+
+```
+**Response to Question 28**: 
+
+*Linearity/Mean Zero: Okay. appears to hold reasonably well although as you move along the x axis data points do appear to be increasing slightly
+
+*Independence: No. errors appear to have some correlation and follow a pattern as they are closely clustering near lower fitted values. 
+
+*Constant Variance: No. Errors appear to be increasing along the x-axis (spread/hederoscadacity)
+
+*Normality: No. Based on the Normal QQ plot and histogram, normality assumption not satisfied. Data skewed to right.
+
+
+## Question 29
+
+Using your model, make a prediction for a listing on Airbnb in Asheville with the following factors: bedrooms = 1, accommodates = 2, reviews = 92, overall_satisfaction = 3.5, and room_type = 'Private room'. What is your predicted price for such a listing and the corresponding 95% prediction interval?
+
+```{r}
+
+newdata1 <- data.frame(bedrooms = 1, accommodates = 2, reviews = 92, overall_satisfaction = 3.5, room_type = "Private room")
+  
+predict(model1, newdata = newdata1, interval = "prediction", level = 0.95)
+
+```
+**Response to Question 29**: predicted price = $72.58
+
+
+
+**The End.**
